@@ -1,0 +1,8 @@
+{
+  "ciphertext": "ozHXUn6HKiGjIqCmStk41RXU4gLtLE4hkPZBrXsxVD2yCL2jJgSKMh8AK+KgJvKHVghpmRiAR/sC9+fHvNpbO8ZOfQZR",
+  "nonce_msg": "/ovpTsF5pXnfKrsH",
+  "encrypted_aes_key": "wXJ9PT9qMfjI73WKWgdLIW1u3AD850vc0h9k1vXyYbihFctLSG7GJV63DGPogLl7",
+  "nonce_key": "uFYipp6TQBuOGGAw",
+  "ephemeral_public_key": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEfGFY9O9C6Nj4hha65ITfGbPefb8I\nUhnM+9flzQMYgnXVUxKbtpdgnQFI9YVmdsmzCpaSO386aby3ZGfKfDMrCw==\n-----END PUBLIC KEY-----\n",
+  "signature": "MEUCIQDv9QA5gPVI7Gm5RmMtvAQe1+oHfnbwmwEMNoqzE5cKiQIgI9jTWtjXYxNdYOR4I9LmS4Nte2tI6xPoec//p1EFgdk="
+}
