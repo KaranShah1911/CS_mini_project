@@ -1,125 +1,121 @@
-# AES-RSA Hybrid Security Framework
+# Hybrid Security Frameworks
 
-This mini-project demonstrates a complete, production-ready implementation of a hybrid cryptographic system utilizing **AES-128 (Symmetric Encryption)** and **RSA (Asymmetric Encryption)**. 
+This repository contains a collection of three production-ready hybrid cryptographic systems. Each system leverages **AES (Advanced Encryption Standard)** for fast, bulk data encryption, paired with a different asymmetric cryptography method for secure key transport and digital signatures. 
 
-The framework provides three crucial security pillars:
-1. **Data Secrecy (Confidentiality):** Achieved via AES-128 encryption.
-2. **File Authentication (Non-Repudiation):** Achieved via RSA Digital Signatures.
+These implementations provide three crucial security pillars:
+1. **Data Secrecy (Confidentiality):** Bulk encryption via AES.
+2. **File Authentication (Non-Repudiation):** Achieved via Digital Signatures (RSA, ECDSA, or DSA).
 3. **Data Integrity:** Achieved by signing a SHA-256 hash of the ciphertext.
 
-This repository features 5 Python scripts that represent a real-world secure communication pipeline between a Sender and a Receiver.
-
 ---
 
-## The 5-Step Pipeline Explained
+## 1. AES-RSA Hybrid Framework
+**Folder:** `AES-RSA/Scripts`
 
-### 1. Key Generation (`Key Generation of RSA.py`)
-This script acts on behalf of the **Receiver**. It generates mathematically secure primes to construct an RSA Public/Private key pair. 
+This framework was built from scratch and relies on the mathematical difficulty of factoring large prime numbers. It features a completely manual, pure Python implementation of AES-128 and RSA.
 
-**Code Snippet: Automated File I/O**
-```python
-public_key = {
-    "n": str(n),
-    "e": str(e)
-}
-with open("public_key.json", "w") as f:
-    json.dump(public_key, f, indent=2)
-```
-**Explanation:** Once the keys are generated, they are immediately formatted into a JSON dictionary and saved. The `public_key.json` is distributed to anyone who wants to send a secure file, while the `private_key.json` remains securely with the receiver. This replaces manual copy-pasting of 600-digit numbers!
+### Pipeline
+1. **Key Generation:** Generates 1024-bit RSA key pairs.
+2. **AES Encryption:** Derives a 16-byte key from a user password via SHA-256, applies PKCS#7 padding, and block-encrypts the message. It then creates an RSA Digital Signature.
+3. **Hybrid Encryption:** Encrypts the 16-byte AES key using the Receiver's RSA Public Key for secure transport.
+4. **Hybrid Decryption:** The Receiver uses the Chinese Remainder Theorem (CRT) alongside their RSA Private Key to recover the AES key.
+5. **AES Decryption:** Verifies the RSA digital signature, decrypts the message, and removes the padding.
 
----
-
-### 2. File Encryption & Signature (`AES Encryption.py`)
-This script acts on behalf of the **Sender**. The sender has a secret message and wants to lock it. Instead of locking the massive file with slow RSA algorithms, it uses fast AES.
-
-**Code Snippet: SHA-256 Key Derivation Function (KDF)**
-```python
-aes_key_bytes = hashlib.sha256(str_password.encode()).digest()[:16]
-```
-**Explanation:** Humans are terrible at remembering 16-character randomized keys (like `x7F!9aQ...`). This KDF allows the sender to type a human-readable password (like `SecurePassword123`). We hash it using SHA-256, and truncate it to exactly 16 bytes (128-bits) to strictly satisfy the requirements of AES-128.
-
-**Code Snippet: PKCS#7 Padding**
-```python
-plaintext_bytes = str_plaintext.encode('utf-8')
-pad_len = 16 - (len(plaintext_bytes) % 16)
-padded_bytes = plaintext_bytes + bytes([pad_len] * pad_len)
-```
-**Explanation:** Block ciphers like AES require the input data to be an exact multiple of the block size (16 bytes). PKCS#7 padding calculates how many bytes are missing, and fills that exact space with bytes representing that number (e.g., if 4 bytes are missing, it pads `0x04 0x04 0x04 0x04`). This allows the system to encrypt messages of *any* arbitrary length!
-
-**Code Snippet: Digital Signatures**
-```python
-hash_hex = hashlib.sha256(ct_bytes).hexdigest()
-signature = pow(int(hash_hex, 16), d, n)
-```
-**Explanation:** Before sending the AES ciphertext, the sender creates a SHA-256 "fingerprint" of it. They then encrypt that fingerprint using their own RSA *private* key `d`. Because only the sender possesses `d`, anyone decrypting it with the sender's public key `e` is absolutely sure the sender was the one who signed it (Authentication), and that the file hasn't been altered (Integrity).
-
----
-
-### 3. Secure Transport of AES Key (`Hybrid RSA Encryption.py`)
-The sender encrypted the data with AES, but how do they give the receiver the password? They don't! Instead, they use Hybrid Cryptography.
-
-**Code Snippet: Int Encoding & RSA Encryption**
-```python
-# Convert exactly 16-bytes of AES key into a single massive integer
-plaintext_int = int.from_bytes(aes_key_bytes, byteorder='big')
-# Encrypt utilizing the Receiver's Public Key (e, n)
-ciphertext_int = fast_exp(plaintext_int, e, n)
-```
-**Explanation:** The raw 16-byte AES key generated in Step 2 is converted into a large mathematical integer. It is then encrypted using the **Receiver's Public RSA Key**. This acts as a digital lockbox that realistically *only* the receiver can open. The sender then transmits the encrypted AES key, the AES ciphertext, and the Digital Signature across the internet.
-
----
-
-### 4. AES Key Recovery (`Hybrid RSA Decryption.py`)
-The **Receiver** gets the files. First, they must recover the AES key to unlock the data. 
-
-**Code Snippet: CRT RSA Decryption & Byte Decoding**
-```python
-plaintext_int = (x2 + h * q) % (p * q)
-aes_key_bytes = plaintext_int.to_bytes(16, byteorder='big')
-```
-**Explanation:** The script automatically loads the receiver's `private_key.json`. Because RSA decryption is mathematically heavy, it uses the **Chinese Remainder Theorem (CRT)** to speed up the `d` modulus calculations significantly using the prime factors `p` and `q`. The resulting integer is safely converted back into exactly 16 bytes representing the original AES key.
-
----
-
-### 5. Decryption & Verification (`AES Decryption.py`)
-The **Receiver** finally uses the recovered AES key to decrypt the ciphertext, but first, they verify the sender's signature. Notice that **this script never asks the user for a password**!
-
-**Code Snippet: Signature Verification**
-```python
-actual_hash_hex = hashlib.sha256(ct_bytes).hexdigest()
-hash_from_sig = pow(signature, e_pub, n_pub)
-
-if hash_from_sig == int(actual_hash_hex, 16):
-    print("Signature is VALID")
-```
-**Explanation:** The receiver takes the ciphertext block, recalculates the SHA-256 hash using the same algorithm as the sender. They then "unlock" the signature using the sender's public key `e_pub`. If the unlocked hash perfectly matches their newly calculated hash, it proves mathematically that the file is authentic and hasn't suffered a man-in-the-middle attack!
-
-**Code Snippet: PKCS#7 Unpadding**
-```python
-pad_value = all_plaintext_bytes[-1]
-unpadded_bytes = all_plaintext_bytes[:-pad_value]
-```
-**Explanation:** Once the AES AES-128 block-decryption loop completes, the script looks at the very last byte of the message. Due to PKCS#7 standards, if the byte is `0x04`, it mathematically guarantees that the last 4 bytes are padding. The script slices them off (`[:-pad_value]`), revealing the beautifully recovered original message of any length.
-
----
-
-## How to Run the Pipeline
-
-Execute the following commands in order in your terminal:
+### How to Run
+Navigate to the `AES-RSA/Scripts` folder and run the following commands sequentially:
 
 ```bash
 # 1. Receiver generates their RSA keys
 python "Key Generation of RSA.py"
+```
+* **What it does:** Generates large primes `p` and `q`, calculates the modulus `n`, and derives public/private keys `e` and `d`. Saves them to `public_key.json` and `private_key.json`.
 
+```bash
 # 2. Sender encrypts the secret message with a password
 python "AES Encryption.py"
+```
+* **What it does:** Asks for a password and a message. Derives an AES key via SHA-256, encrypts the message block-by-block, and signs the ciphertext with the Sender's RSA private key. Saves `aes_ciphertext.json` and `signature.json`.
 
+```bash
 # 3. Sender securely wraps the AES key for transport
 python "Hybrid RSA Encryption.py"
+```
+* **What it does:** Re-derives the AES key from the password, converts it to an integer, and encrypts it using the Receiver's RSA public key. Saves to `rsa_encrypted_key.json`.
 
+```bash
 # 4. Receiver unwraps the AES key using their private key
 python "Hybrid RSA Decryption.py"
+```
+* **What it does:** The receiver uses their private key to mathematically unlock the AES key. The recovered key is saved to `aes_key_recovered.json`.
 
+```bash
 # 5. Receiver decrypts the message and verifies the signature
 python "AES Decryption.py"
 ```
+* **What it does:** Uses the recovered AES key to decrypt the message, verifies the digital signature to ensure authenticity, and prints the original message.
+
+---
+
+## 2. AES-ECC Hybrid Framework
+**Folder:** `AES-ECC/Scripts`
+
+This framework utilizes the `cryptography` Python library and relies on Elliptic Curve Cryptography (ECC), specifically the `SECP256R1` curve. ECC provides the same level of security as RSA but with significantly smaller key sizes.
+
+### Pipeline
+1. **Key Generation:** Generates long-term ECC identity keys for both Sender and Receiver.
+2. **Hybrid Encrypt:** Uses Elliptic Curve Diffie-Hellman (ECDH) with an ephemeral key to create a shared secret. It then uses HKDF to derive a Key Encryption Key (KEK) which encrypts a random AES key via AES-GCM. The message is encrypted, and an ECDSA signature is generated.
+3. **Hybrid Decrypt:** The Receiver uses their private key and the ephemeral public key to reconstruct the shared secret, derive the KEK, recover the AES key, verify the ECDSA signature, and decrypt the message.
+
+### How to Run
+Navigate to the `AES-ECC/Scripts` folder and run the following commands sequentially:
+
+```bash
+# 1. Generate identity keys for both parties
+python "Step1_ECC_Key_Gen.py"
+```
+* **What it does:** Uses the `SECP256R1` curve to generate ECC key pairs for both the Sender and the Receiver. Saves them as PEM files.
+
+```bash
+# 2. Sender encrypts the message, wraps the AES key, and signs the payload
+python "Step2_Hybrid_Encrypt.py"
+```
+* **What it does:** Generates an ephemeral ECC key, computes an ECDH shared secret with the Receiver's public key, and derives a KEK via HKDF. Encrypts a random AES key with the KEK, encrypts the message with the AES key (both using AES-GCM), and signs the entire package with ECDSA. Outputs `encrypted_package.json`.
+
+```bash
+# 3. Receiver verifies the signature, unwraps the AES key, and decrypts the message
+python "Step3_Hybrid_Decrypt.py"
+```
+* **What it does:** Loads the JSON package, reconstructs the ECDH shared secret using the Receiver's private key, re-derives the KEK, recovers the AES key, verifies the ECDSA signature, and finally decrypts the message.
+
+---
+
+## 3. AES-El Gamal Hybrid Framework
+**Folder:** `AES-El Gamal/Scripts`
+
+This framework pairs modern AES-GCM encryption with a from-scratch mathematical implementation of El Gamal cryptography, which relies on the difficulty of computing discrete logarithms.
+
+### Pipeline
+1. **Key Generation:** Generates El Gamal keys (from scratch using a 2048-bit safe prime) and DSA keys (via library) for digital signatures.
+2. **Hybrid Encrypt:** Generates a random AES key, encrypts the message via AES-GCM, and mathematically encrypts the AES key using El Gamal equations (`c1 = g^k mod p`, `c2 = m * y^k mod p`). The payload is then signed using DSA.
+3. **Hybrid Decrypt:** Verifies the DSA signature. If valid, uses the Receiver's El Gamal private key to mathematically recover the AES key (`m = c2 * inverse(c1^x mod p)`). Finally, the message is decrypted.
+
+### How to Run
+Navigate to the `AES-El Gamal/Scripts` folder and run the following commands sequentially:
+
+```bash
+# 1. Generate El Gamal and DSA keys
+python "Step1_Key_Generation.py"
+```
+* **What it does:** Generates the Receiver's El Gamal keys (prime `p`, generator `g`, private `x`, public `y`) using pure Python math and saves them to a JSON file. Generates the Sender's DSA keys using the `cryptography` library and saves them as PEM files.
+
+```bash
+# 2. Sender encrypts the message, wraps the AES key via El Gamal, and signs with DSA
+python "Step2_Hybrid_Encrypt.py"
+```
+* **What it does:** Generates a random 256-bit AES key and encrypts the message using AES-GCM. Converts the AES key into a large integer and encrypts it using El Gamal math from scratch, yielding ciphertexts `c1` and `c2`. Signs the payload with the Sender's DSA private key and saves it all to `encrypted_package.json`.
+
+```bash
+# 3. Receiver verifies the signature, unwraps the AES key via El Gamal, and decrypts
+python "Step3_Hybrid_Decrypt.py"
+```
+* **What it does:** Loads the package and verifies the DSA signature mathematically. Recovers the AES key integer using from-scratch El Gamal decryption math (`c2 * modular_inverse(c1^x) mod p`) and converts it back to bytes. Decrypts the message using the recovered AES key via AES-GCM.
